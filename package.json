@@ -9,7 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+<<<<<<< HEAD
     "@google/generative-ai": "^0.24.1",
+=======
+>>>>>>> 672fead (Migrate to App Router, auth flow, dashboard UI)
     "firebase": "^12.9.0",
     "next": "16.1.6",
     "react": "19.2.3",
