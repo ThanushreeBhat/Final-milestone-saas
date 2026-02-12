@@ -1,4 +1,4 @@
-import AIEditor from "../components/AIEditor";
+import AIEditor from "../../components/AIEditor";
 
 export default function EditorPage() {
   return <AIEditor />;
