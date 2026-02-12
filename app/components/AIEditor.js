@@ -1,70 +1,172 @@
 "use client";
-import { useState } from "react";
-import Checklist from "./checklist";
+import { useState, useEffect } from "react";
+
+
+import { db } from "../lib/firebase";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  orderBy,
+  query,
+  deleteDoc,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
 
 export default function AIEditor() {
   const [text, setText] = useState("");
+  const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState("");
 
+ 
   const handleAction = async (path) => {
     if (!text) return;
+
     setLoading(true);
-    const res = await fetch(`/api/ai/${path}`, {
-      method: "POST",
-      body: JSON.stringify({ text }),
-    });
-    const data = await res.json();
-    setText(data.result);
+    try {
+      const res = await fetch(`/api/ai/${path}`, {
+        method: "POST",
+        body: JSON.stringify({ text }),
+      });
+
+      const data = await res.json();
+      setText(data.result);
+    } catch (error) {
+      console.error(error);
+      alert("AI error occurred");
+    }
     setLoading(false);
   };
 
+ 
+  useEffect(() => {
+    if (!text.trim()) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        await addDoc(collection(db, "notes"), {
+          content: text,
+          createdAt: new Date(),
+        });
+
+        setAutoSaveStatus("Auto saved");
+        loadNotes();
+      } catch (error) {
+        console.error(error);
+      }
+    }, 2000); 
+
+    return () => clearTimeout(timer);
+  }, [text]);
+
+  const loadNotes = async () => {
+    const q = query(collection(db, "notes"), orderBy("createdAt", "desc"));
+    const querySnapshot = await getDocs(q);
+
+    const notesList = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    setNotes(notesList);
+  };
+
+  useEffect(() => {
+    loadNotes();
+  }, []);
+
+
+  const deleteNote = async (id) => {
+    await deleteDoc(doc(db, "notes", id));
+    loadNotes();
+  };
+
   
-   return (
-  <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-start p-4">
+  const renameNote = async (id) => {
+    const newName = prompt("Enter new note name:");
 
-   
-    <div className="w-[800px] h-[300px] bg-black rounded-xl shadow-sm border border-gray-200">
+    if (!newName) return;
+
+    await updateDoc(doc(db, "notes", id), {
+      content: newName,
+    });
+
+    loadNotes();
+  };
+
+  return (
+    <div className="flex min-h-screen bg-gray-100">
+
       
-      <textarea
-        className="w-full h-64 p-6 rounded-t-xl text-white text-lg"
-        placeholder="Type here"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-      />
+      <div className="w-[300px] bg-white border-r p-4">
+        <h2 className="text-lg font-bold mb-4">History</h2>
 
-      <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t border-gray-100 rounded-b-xl">
-        <div className="flex gap-2">
-          <button 
-            onClick={() => handleAction("summarize")}
-            className="px-4 py-2 text-sm font-medium text-white bg-black hover:bg-gray-200 rounded-md transition"
+        {notes.map((note) => (
+          <div
+            key={note.id}
+            className="p-3 border mb-2 rounded hover:bg-gray-100"
           >
-            Summarize
-          </button>
+            <div
+              className="cursor-pointer font-medium"
+              onClick={() => setText(note.content)}
+            >
+              {note.content.substring(0, 40)}...
+            </div>
 
-          <button 
-            onClick={() => handleAction("improve")}
-            className="px-4 py-2 text-sm font-medium text-white bg-black hover:bg-gray-200 rounded-md transition"
-          >
-            Improve
-          </button>
+            <div className="flex gap-2 mt-2">
+            
+              <button
+                onClick={() => deleteNote(note.id)}
+                className="text-red-500 text-sm"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+     
+      <div className="flex-1 flex flex-col items-center p-6">
+
+        <div className="w-[800px] bg-white rounded-xl shadow-sm border">
+          
+          <textarea
+            className="w-full h-64 p-6 text-lg outline-none"
+            placeholder="Type your notes here..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+
+          <div className="flex justify-between px-6 py-4 border-t">
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleAction("summarize")}
+                className="px-4 py-2 bg-black text-white rounded"
+              >
+                Summarize
+              </button>
+
+              <button
+                onClick={() => handleAction("improve")}
+                className="px-4 py-2 bg-black text-white rounded"
+              >
+                Improve
+              </button>
+
+              <button
+                onClick={() => handleAction("generate")}
+                className="px-4 py-2 bg-black text-white rounded"
+              >
+                Generate
+              </button>
+            </div>
+          </div>
         </div>
-
-        <button 
-          onClick={() => handleAction("generate")}
-          disabled={loading}
-          className="px-4 py-2 text-sm font-medium bg-black text-white rounded-md hover:bg-gray-800 transition disabled:opacity-50"
-        >
-          {loading ? "Working..." : "Generate"}
-        </button>
+        
       </div>
     </div>
-
-   
-    <div className="h-8"></div>
-    <Checklist />
-
-  </div>
-);
-
-  
+  );
 }
